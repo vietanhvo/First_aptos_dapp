@@ -1,26 +1,28 @@
-import React from 'react';
-import logo from './logo.svg';
+import React, { useState, useEffect } from 'react';
+import { Types, AptosClient } from "aptos";
 import './App.css';
 
+const client = new AptosClient("https://fullnode.devnet.aptoslabs.com");
+
 function App() {
-  return (
-    <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.tsx</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
-      </header>
-    </div>
-  );
+    const [address, setAddress] = useState<string | null>(null);
+    const [account, setAccount] = useState<Types.AccountData | null>(null);
+
+    useEffect(() => {
+        window.aptos.account().then((data: { address: string }) => setAddress(data.address));
+    }, []);
+
+    useEffect(() => {
+        if (!address) return;
+        client.getAccount(address).then(setAccount);
+    }, [address])
+
+    return (
+        <div className="App">
+            <p><code>{address}</code></p>
+            <p>{account?.sequence_number}</p>
+        </div>
+    )
 }
 
 export default App;
