@@ -1,38 +1,34 @@
 import React, { createRef, useState, useEffect } from 'react';
-import { Types, AptosClient } from "aptos";
+import { Types, AptosClient, BCS, TxnBuilderTypes } from "aptos";
 import './App.css';
 
-const client = new AptosClient("https://fullnode.devnet.aptoslabs.com");
+const client = new AptosClient("http://127.0.0.1:8080");
 
 function App() {
-    const urlAddress = window.location.pathname.slice(1);
+    const urlAddress = window.location.pathname.slice(1).toLowerCase();
     const isEditable = !urlAddress;
 
     const [address, setAddress] = useState<string | null>(null);
-    const [account, setAccount] = useState<Types.AccountData | null>(null);
+    const [_account, setAccount] = useState<Types.AccountData | null>(null);
     const [modules, setModules] = React.useState<Types.MoveModuleBytecode[]>([]);
     const [isSaving, setIsSaving] = useState(false);
     const [resources, setResources] = useState<Types.MoveResource[]>([]);
 
     const ref = createRef<HTMLTextAreaElement>();
 
-    function stringToHex(text: string) {
-        const encoder = new TextEncoder();
-        const encoded = encoder.encode(text);
-        return Array.from(encoded, (i) => i.toString(16).padStart(2, "0")).join("");
-    }
-
     const handleSubmit = async (e: any) => {
         e.preventDefault();
         if (!ref.current) return;
 
         const message = ref.current.value;
-        const transaction = {
-            type: "script_function_payload",
-            function: `${address}::Message::set_message`,
-            arguments: [stringToHex(message)],
-            type_arguments: [],
-        };
+        const transaction = new TxnBuilderTypes.TransactionPayloadScriptFunction(
+            TxnBuilderTypes.ScriptFunction.natural(
+                `${address}::message`,
+                "set_message",
+                [],
+                [BCS.bcsSerializeStr(message)],
+            )
+        );
 
         try {
             setIsSaving(true);
@@ -42,6 +38,7 @@ function App() {
         }
     };
 
+    // Retrieve aptos account address on url (user's account if not )
     useEffect(() => {
         if (urlAddress) {
             setAddress(urlAddress);
@@ -50,21 +47,25 @@ function App() {
         }
     }, [urlAddress]);
 
+    // Get account
     useEffect(() => {
         if (!address) return;
         client.getAccount(address).then(setAccount);
     }, [address])
 
+    // Get all modules in this account
     useEffect(() => {
         if (!address) return;
         client.getAccountModules(address).then(setModules);
     }, [address]);
 
+    // Get all resources in this account
     useEffect(() => {
         if (!address) return;
         client.getAccountResources(address).then(setResources);
     }, [address]);
 
+    console.log(resources);
     const hasModule = modules.some((m) => m.abi?.name === "message");
     const publishInstructions = (
         <pre>
@@ -74,12 +75,7 @@ function App() {
             --named-addresses HelloBlockchain={address}
         </pre>
     );
-    const resourceType = {
-        address: `${address}`,
-        module: "Message",
-        name: "MessageHolder",
-        generic_type_params: [],
-    };
+    const resourceType = `${address}::message::MessageHolder`;
     const resource = resources.find((r) => r.type == resourceType);
     const data = resource?.data as { message: string } | undefined;
     const message = data?.message;
